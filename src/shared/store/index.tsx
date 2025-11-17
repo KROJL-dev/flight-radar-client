@@ -5,7 +5,6 @@ export class RootStore {
 
   constructor() {
     this.authStore = new AuthStore(this);
-    // this.integrations = new IntegrationsStore(this);
   }
 }
 

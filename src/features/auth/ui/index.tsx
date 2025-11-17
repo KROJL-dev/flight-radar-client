@@ -1,22 +1,22 @@
-import {
-  Paper,
-  TextField,
-  Typography,
-  Button,
-  CircularProgress,
-} from "@mui/material";
-import React from "react";
-
+import { Paper, TextField, Typography, Button, Alert } from "@mui/material";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { LoginForm } from "../type";
-import { schema } from "../model/schema";
-import { useStore } from "@/app/providers/store";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+import { useStore } from "@/app/providers/store";
+import { schema } from "../model/schema";
+import type { LoginForm } from "../type";
+
+const sxButton = { mt: 2 };
+const sxPaper = { p: 4, width: 380 };
 
 const AuthUI = () => {
   const { authStore } = useStore();
   const navigate = useNavigate();
+
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
@@ -24,27 +24,52 @@ const AuthUI = () => {
     formState: { errors },
   } = useForm<LoginForm>({
     resolver: yupResolver(schema),
+    mode: "onSubmit",
+    defaultValues: { key: "" },
   });
 
-  const onSubmit: SubmitHandler<LoginForm> = async (data: LoginForm) => {
-    const res = await authStore.login(data?.key);
-    if (res) {
-      navigate("/map");
-      authStore.setIsAuth(true);
-    }
-  };
+  const onSubmit = useCallback<SubmitHandler<LoginForm>>(
+    async ({ key }) => {
+      setLoading(true);
+      setServerError(null);
+
+      try {
+        const success = await authStore.login(key);
+
+        if (success) {
+          navigate("/map");
+          return;
+        }
+
+        setServerError("Невірний ключ доступу");
+      } catch (err) {
+        console.error(err);
+        setServerError("Сталася помилка. Спробуйте пізніше.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [authStore, navigate]
+  );
+
   return (
-    <Paper elevation={3} sx={{ p: 4, width: 380 }}>
+    <Paper elevation={3} sx={sxPaper}>
       <Typography variant="h5" fontWeight={600} mb={3} textAlign="center">
         Login
       </Typography>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      {serverError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {serverError}
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <TextField
+          {...register("key")}
           fullWidth
           label="Ключ"
           margin="normal"
-          {...register("key")}
           error={!!errors.key}
           helperText={errors.key?.message}
         />
@@ -53,11 +78,10 @@ const AuthUI = () => {
           fullWidth
           variant="contained"
           type="submit"
-          sx={{ mt: 2 }}
-          // disabled={loading}
+          sx={sxButton}
+          disabled={loading}
         >
-          Sign in
-          {/* {loading ? <CircularProgress size={22} /> : "Sign in"} */}
+          {loading ? "Завантаження..." : "Увійти"}
         </Button>
       </form>
     </Paper>

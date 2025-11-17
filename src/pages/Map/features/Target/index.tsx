@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { socket } from "@/config/socket";
-import type { Coordinate, FlightState, Position } from "./types";
+import type {
+  Coordinate,
+  FlightID,
+  PositionListenerMSG,
+  RouteListenerMSG,
+} from "../../types";
 
 import * as L from "leaflet";
 import { Polyline, Marker, Popup } from "react-leaflet";
@@ -9,9 +14,9 @@ import { Polyline, Marker, Popup } from "react-leaflet";
 const MissileIcon = new URL("@/assets/missile.png", import.meta.url).href;
 
 import "leaflet-rotatedmarker";
+import React from "react";
 
-interface Props {
-  flightId: string;
+interface Props extends FlightID {
   initialPos: Coordinate;
 }
 
@@ -26,7 +31,7 @@ const markerIcon = new L.Icon({
   iconAnchor: [20, 40],
 });
 
-const Target: React.FC<Props> = ({ flightId, initialPos }) => {
+const Target: React.FC<Props> = React.memo(({ flightId, initialPos }) => {
   const [heading, setHeading] = useState<number>(0);
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(
     initialPos
@@ -37,22 +42,27 @@ const Target: React.FC<Props> = ({ flightId, initialPos }) => {
   const markerRef = useRef<RotatedMarker | null>(null);
 
   useEffect(() => {
-    console.log("flightId", flightId);
-    socket.emit("subscribe", { flightId, initialPos });
+    socket.emit("subscribe", {
+      flightId,
+      initialPos: { lat: initialPos[0], lon: initialPos[1] },
+    });
 
-    const onRoute = (msg: { flightId: string; route: Position[] }) => {
-      if (msg.flightId !== flightId) return;
-      const points = msg.route.map((p) => [p.lat, p.lon] as Coordinate);
+    const onRoute = ({ flightId: msgFlightId, route }: RouteListenerMSG) => {
+      if (msgFlightId !== flightId) return;
+      const points = route.map((p) => [p.lat, p.lon] as Coordinate);
       setRoute(points);
     };
 
-    const onPosition = (msg: { flightId: string; position: FlightState }) => {
-      if (msg.flightId !== flightId) return;
+    const onPosition = ({
+      flightId: msgFlightId,
+      position: { lat, lon, heading, active },
+    }: PositionListenerMSG) => {
+      if (msgFlightId !== flightId) return;
 
-      setHeading(msg.position.heading);
-      setCoordinate([msg.position.lat, msg.position.lon]);
-      setRoute((prev) => [...prev, [msg.position.lat, msg.position.lon]]);
-      setIsActive(msg.position.active);
+      setHeading(heading);
+      setCoordinate([lat, lon]);
+      setRoute((prev) => [...prev, [lat, lon]]);
+      setIsActive(active);
     };
 
     socket.on("route", onRoute);
@@ -91,13 +101,16 @@ const Target: React.FC<Props> = ({ flightId, initialPos }) => {
           opacity={isActive ? 1 : 0.5}
         >
           <Popup>
+            <div>Ідентифікатор: {flightId}</div>
             <div>
-              <b>{flightId}</b>
+              Координати: {coordinate[0]?.toFixed(2)},{" "}
+              {coordinate[1]?.toFixed(2)}
             </div>
+            <div>Напрям: {(heading || 0).toFixed(2)}</div>
           </Popup>
         </Marker>
       )}
     </>
   );
-};
+});
 export default Target;

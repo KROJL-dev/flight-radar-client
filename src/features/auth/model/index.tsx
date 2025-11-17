@@ -1,7 +1,8 @@
-import { makeObservable, action, observable } from "mobx";
+import { action, makeAutoObservable } from "mobx";
 
 import { api } from "@/config/axios";
 import { RootStore } from "@/shared/store";
+import { connectWithKey } from "@/config/socket";
 
 export class AuthStore {
   rootStore: RootStore;
@@ -10,7 +11,7 @@ export class AuthStore {
 
   constructor(rootStore: RootStore) {
     this.rootStore = rootStore;
-    makeObservable(this);
+    makeAutoObservable(this);
   }
 
   @action
@@ -20,8 +21,9 @@ export class AuthStore {
 
   @action
   async login(apiKey: string) {
-    console.log("apiKey", apiKey);
+    connectWithKey(apiKey);
     const { data } = await api.post("auth/verify", { apiKey });
+    if (data) this.setIsAuth(true);
     return data;
   }
 }
